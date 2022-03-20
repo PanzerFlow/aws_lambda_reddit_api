@@ -1,7 +1,28 @@
 import project_config
 import requests
 import json,csv
+import boto3
+from datetime import datetime, timezone
 
+
+
+s3_client = boto3.client("s3")
+LOCAL_FILE_SYS = "/tmp"
+S3_BUCKET = "batch-processing-reddit-api"
+FILE_NAME = "reddit_api_top_posts.json"
+
+
+def _get_timestamp():
+    dt_now = datetime.now(tz=timezone.utc)
+    KEY = (
+        dt_now.strftime("%Y-%m-%d")
+        + "_"
+        + dt_now.strftime("%H")
+        + "_"
+        + dt_now.strftime("%M")
+        + "_"
+    )
+    return KEY
 
 def create_temp_auth():
 
@@ -36,7 +57,7 @@ def create_temp_auth():
     return headers
 
 def get_today_top_posts_json(headers):
-
+    """This function returns the top 100 posts in the last 24 hours."""
     posts = requests.get("https://oauth.reddit.com/r/dataengineering/top",
                    headers=headers, params={'t':'day','limit': '100'})
 
@@ -66,13 +87,25 @@ def parse_posts_json(input_json):
 
     return output_json
 
+def write_to_local(data,name,loc=LOCAL_FILE_SYS):
+    local_filepath=loc+'/'+str(name)
+    with open(local_filepath,'w') as file:
+        file.write(data)
 def main():
+    #Create auth
     api_headers = create_temp_auth()
-    posts_json = get_today_top_posts_json(api_headers)
-    processed_posts_json=parse_posts_json(posts_json)
 
-    with open('json_data.json', 'w') as outfile:
-        outfile.write(processed_posts_json)
-        
+    #Get and parse the result from the api call
+    posts_json = get_today_top_posts_json(api_headers)
+    processed_posts_json = parse_posts_json(posts_json)
+
+    #Store the result in local drive first
+    key = _get_timestamp()
+    write_to_local(processed_posts_json,key+FILE_NAME)
+
+    #push to s3
+    s3_client.upload_file(LOCAL_FILE_SYS+'/'+key+FILE_NAME, S3_BUCKET, "raw/posts/"+key+FILE_NAME)
+    
 if __name__ == "__main__":
     main()
+
