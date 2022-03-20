@@ -1,8 +1,29 @@
-from tokenize import String
 import project_config
 import requests
 import json,csv
-#Function to request an OAuth token, this toke will expire after ~2 hours, and a new one will need to be requested.
+import boto3
+from datetime import datetime, timezone
+
+
+
+s3_client = boto3.client("s3")
+LOCAL_FILE_SYS = "/tmp"
+S3_BUCKET = "batch-processing-reddit-api"
+FILE_NAME = "reddit_api_top_posts.json"
+
+
+def _get_timestamp():
+    dt_now = datetime.now(tz=timezone.utc)
+    KEY = (
+        dt_now.strftime("%Y-%m-%d")
+        + "_"
+        + dt_now.strftime("%H")
+        + "_"
+        + dt_now.strftime("%M")
+        + "_"
+    )
+    return KEY
+
 def create_temp_auth():
 
     # Setting up config parameters
@@ -10,6 +31,7 @@ def create_temp_auth():
     secret_token = project_config.redditAPI_secret_token
     username = project_config.redditAPI_username
     password = project_config.redditAPI_password
+
     auth = requests.auth.HTTPBasicAuth(client_id,secret_token)
 
     # Setting up access method
@@ -34,43 +56,56 @@ def create_temp_auth():
     requests.get('https://oauth.reddit.com/api/v1/me', headers=headers)
     return headers
 
+def get_today_top_posts_json(headers):
+    """This function returns the top 100 posts in the last 24 hours."""
+    posts = requests.get("https://oauth.reddit.com/r/dataengineering/top",
+                   headers=headers, params={'t':'day','limit': '100'})
+
+    posts_json = posts.json()
+
+    return posts_json
+
+
 #Attempt to write a function to parse this json result and save to csv. Too hard to treat the text the posts.
-def reddit_json_to_csv(input_json_text:String,result_csv_path:String):
-    """
-       A function for parsing the result of reddit api.
-        Input
-        ----------
-        input_json_text : str
-            a json string from the reddit api.
-        result_csv_path : str
-            file path for the result
-    """
-    with open(result_csv_path, 'w', newline='') as csvfile:
+def parse_posts_json(input_json):
+    """A function for parsing the result posts of reddit api calls. Optional, api result data can be stored as raw json instead."""
+    posts=[]
+    for post in input_json['data']['children']:
+        
+        row=dict()
+        row["post_title"] = post['data']['title']
+        row["post_id"] = post['data']['id']
+        row["subreddit_id"] = post['data']['subreddit_id']
+        row["post_author"] = post['data']['author']
+        row["link_flair_text"] = post['data']['link_flair_text']         
+        row["created_at_utc"] = post['data']['created_utc']
+        row["post_text"] = post['data']['selftext']
+        row["post_score"] = post['data']['score']
+        
+        posts.append(row.copy())
+    output_json = json.dumps(posts, indent = 4)
 
-        writer = csv.writer(csvfile, delimiter='|')
-        writer.writerow(["title","id","subreddit_id","author","link_flair_text","created_at_utc","post_text","post_score"])
-        for post in input_json_text['data']['children']:
-            title = post['data']['title']
-            id = post['data']['id']
-            subreddit_id = post['data']['subreddit_id']
-            author = post['data']['author']
-            link_flair_text = post['data']['link_flair_text']         
-            created_at_utc = post['data']['created_utc']
-            post_text = post['data']['selftext']
-            post_score = post['data']['score']
-            writer.writerow([title,id,subreddit_id,author,link_flair_text,created_at_utc,post_text,post_score])
+    return output_json
+
+def write_to_local(data,name,loc=LOCAL_FILE_SYS):
+    local_filepath=loc+'/'+str(name)
+    with open(local_filepath,'w') as file:
+        file.write(data)
+def main():
+    #Create auth
+    api_headers = create_temp_auth()
+
+    #Get and parse the result from the api call
+    posts_json = get_today_top_posts_json(api_headers)
+    processed_posts_json = parse_posts_json(posts_json)
+
+    #Store the result in local drive first
+    key = _get_timestamp()
+    write_to_local(processed_posts_json,key+FILE_NAME)
+
+    #push to s3
+    s3_client.upload_file(LOCAL_FILE_SYS+'/'+key+FILE_NAME, S3_BUCKET, "raw/posts/"+key+FILE_NAME)
     
-
-
-api_headers = create_temp_auth()
-#api_headers = {'User-Agent': 'DataEngSubscraper/0.0.1', 'Authorization': 'bearer 20340382-PD7s2j2eidebvVFNJfCMJGyQEP1WrQ'}
-
-res = requests.get("https://oauth.reddit.com/r/dataengineering/new",
-                   headers=api_headers, params={'limit': '100'})
-
-res_json = res.json()
-reddit_json_to_csv(res_json,'./reddit_api_result.csv')
-    
-
-
+if __name__ == "__main__":
+    main()
 
