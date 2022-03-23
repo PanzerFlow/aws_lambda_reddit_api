@@ -1,6 +1,6 @@
-# Batch Data Processing Project using data from reddit API
-This is a personal project intended for me to practice using the reddit API.
+# Using AWS Lambda for API data extraction
+This is a personal project intended for me to practice the use of lambda function to download API data.
 
 General outline:
-    EC2 >> Python >> Reddit API >> S3 >> Athena to visualize the data
-    Orchestration will be done using crontab
+    Schedule EventBridge Trigger >> Lambda Function >> Reddit API >> S3 
+    
