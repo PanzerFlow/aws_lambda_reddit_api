@@ -107,5 +107,5 @@ def lambda_handler (event, context):
 
     #push to s3
     s3_client.upload_file(LOCAL_FILE_SYS+'/'+key+FILE_NAME, S3_BUCKET, "raw/posts/"+key+FILE_NAME)
-    
+    return("API result is now uploaded into s3:// "+S3_BUCKET+"raw/posts/"+key+FILE_NAME)
 
