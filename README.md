@@ -4,3 +4,6 @@ This is a personal project intended for me to practice the use of lambda functio
 General outline:
     Schedule EventBridge Trigger >> Lambda Function >> Reddit API >> S3 
     
+
+
+![alt text](https://github.com/PanzerFlow/aws_lambda_reddit_api/blob/main/img/Lambda.PNG?raw=true)
