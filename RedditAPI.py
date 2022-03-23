@@ -1,11 +1,10 @@
-import project_config
 import requests
-import json,csv
+import json
 import boto3
 from datetime import datetime, timezone
+import os
 
-
-
+# Setting up local paramters
 s3_client = boto3.client("s3")
 LOCAL_FILE_SYS = "/tmp"
 S3_BUCKET = "batch-processing-reddit-api"
@@ -27,10 +26,10 @@ def _get_timestamp():
 def create_temp_auth():
 
     # Setting up config parameters
-    client_id = project_config.redditAPI_personal_use_script
-    secret_token = project_config.redditAPI_secret_token
-    username = project_config.redditAPI_username
-    password = project_config.redditAPI_password
+    client_id = os.environ['reddit_client_id']
+    secret_token = os.environ['reddit_secret_token']
+    username = os.environ['reddit_username']
+    password = os.environ['reddit_password']
 
     auth = requests.auth.HTTPBasicAuth(client_id,secret_token)
 
@@ -91,7 +90,10 @@ def write_to_local(data,name,loc=LOCAL_FILE_SYS):
     local_filepath=loc+'/'+str(name)
     with open(local_filepath,'w') as file:
         file.write(data)
-def main():
+
+
+#lambda_handler is the entry point for the start of the lambda execution
+def lambda_handler (event, context):
     #Create auth
     api_headers = create_temp_auth()
 
@@ -106,6 +108,4 @@ def main():
     #push to s3
     s3_client.upload_file(LOCAL_FILE_SYS+'/'+key+FILE_NAME, S3_BUCKET, "raw/posts/"+key+FILE_NAME)
     
-if __name__ == "__main__":
-    main()
 
